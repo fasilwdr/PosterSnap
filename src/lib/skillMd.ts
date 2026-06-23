@@ -1,7 +1,12 @@
-export const SKILL_MD_FILENAME = 'html-conversion-skill.md'
+export const SKILL_MD_FILENAME = 'SKILL.md'
 
 export function generateSkillMd(): string {
-  return `# PosterSnap — HTML-to-Image Conversion Skill
+  return `---
+name: html-to-image
+description: Convert a self-contained HTML/CSS/JS snippet into a marketing-ready PNG, JPG, PDF, or animated GIF with PosterSnap. Use when turning an HTML/CSS mockup into an exportable poster, social post, print-ready PDF, or ad creative without opening a design tool.
+---
+
+# PosterSnap — HTML-to-Image Conversion Skill
 
 ## 1. Purpose
 PosterSnap turns a self-contained HTML/CSS/JS snippet into a marketing-ready
@@ -17,9 +22,15 @@ without opening a design tool.
 3. Click **Render** to preview it.
 
 ### Upload mode
-1. Click **Upload HTML file** in the left panel.
+1. Click **Upload .html** in the left panel.
 2. Choose a \`.html\` or \`.htm\` file (max ~2MB).
 3. The content loads into the editor and previews automatically.
+
+### Exporting
+1. Set the canvas **Width/Height** (or pick a size **Preset**) and choose a
+   **Background** (transparent by default, or a solid color).
+2. In the bottom bar, pick a **format** (PNG / JPG / GIF / PDF) and click
+   **Export**. The file downloads straight to your device.
 
 ## 3. Supported Features
 - Inline \`<style>\` blocks and inline \`style="..."\` attributes.
@@ -27,8 +38,9 @@ without opening a design tool.
 - CSS animations and transitions (captured by the GIF exporter).
 - Web-safe fonts and \`@font-face\` declarations using embedded/base64 or
   publicly reachable font URLs.
-- Background images and gradients, including \`background: transparent\`
-  when exporting to PNG with transparency enabled.
+- Background images and gradients. A transparent background is enabled by
+  default and preserved in PNG exports; JPG always falls back to a solid
+  background since it has no alpha channel.
 
 ### Not supported in MVP
 - External resources blocked by CORS (cross-origin images/fonts may render
@@ -102,7 +114,8 @@ without opening a design tool.
   match your animation's natural loop length. CSS animations are captured
   by deterministically seeking each frame, so even finite (non-looping)
   animations are captured correctly frame-by-frame instead of as a single
-  frozen frame.
+  frozen frame. GIF export is capped at 2x scale (even if 3x is selected) to
+  keep per-frame capture fast.
 - Filenames follow the pattern \`postersnap_{timestamp}_{width}x{height}.{ext}\`.
 
 ## 7. Troubleshooting

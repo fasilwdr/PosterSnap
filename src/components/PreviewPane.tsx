@@ -26,7 +26,10 @@ const PreviewPane = forwardRef<HTMLIFrameElement>(function PreviewPane(_props, i
       const availableW = el.clientWidth - padding
       const availableH = el.clientHeight - padding
       const scale = Math.min(availableW / width, availableH / height, 1)
-      setFitScale(scale > 0 ? scale : 1)
+      const next = scale > 0 ? scale : 1
+      // Bail out on sub-pixel changes so a ResizeObserver -> setState -> relayout
+      // cycle can't thrash (returns the same value -> React skips the re-render).
+      setFitScale((prev) => (Math.abs(prev - next) < 0.005 ? prev : next))
     }
     compute()
     const observer = new ResizeObserver(compute)
@@ -35,22 +38,28 @@ const PreviewPane = forwardRef<HTMLIFrameElement>(function PreviewPane(_props, i
   }, [width, height])
 
   const displayScale = zoom === 'fit' ? fitScale : zoom / 100
+  const hasContent = html.trim().length > 0
 
   return (
-    <section className="flex h-full flex-col gap-3" aria-label="Live preview">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-white/60">
-          2. Preview
+    <section className="flex h-full min-h-0 flex-col gap-3" aria-label="Live preview">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2 className="flex items-center gap-2.5 text-sm font-semibold text-white">
+          <span className="step-badge">2</span>
+          Preview
+          <span className="ml-1 rounded-md bg-white/5 px-2 py-0.5 font-mono text-xs font-normal text-white/45">
+            {width} × {height}
+            {displayScale !== 1 && ` · ${Math.round(displayScale * 100)}%`}
+          </span>
         </h2>
-        <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 p-1">
+        <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-black/20 p-1">
           {ZOOM_OPTIONS.map((option) => (
             <button
               key={option}
               type="button"
               onClick={() => setZoom(option)}
               aria-pressed={zoom === option}
-              className={`rounded-md px-2.5 py-1 text-xs transition ${
-                zoom === option ? 'bg-accent-strong text-white' : 'text-white/60 hover:bg-white/10'
+              className={`rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                zoom === option ? 'bg-accent-strong text-white shadow' : 'text-white/55 hover:bg-white/10'
               }`}
             >
               {option === 'fit' ? 'Fit' : `${option}%`}
@@ -61,11 +70,21 @@ const PreviewPane = forwardRef<HTMLIFrameElement>(function PreviewPane(_props, i
 
       <div
         ref={containerRef}
-        className={`relative flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-xl border border-white/10 ${
+        className={`relative flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-xl border border-white/10 shadow-inner ${
           backgroundMode === 'transparent' ? 'checker-bg' : ''
         }`}
         style={backgroundMode === 'solid' ? { backgroundColor } : undefined}
       >
+        {!hasContent && (
+          <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center gap-3 text-center text-white/40">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+              <circle cx="9" cy="9" r="2" />
+              <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" />
+            </svg>
+            <p className="text-sm">Paste or upload HTML to see a live preview</p>
+          </div>
+        )}
         <div
           style={{
             width: width * displayScale,

@@ -54,21 +54,31 @@ export default function InputPanel() {
   }
 
   return (
-    <section className="flex h-full flex-col gap-3" aria-label="HTML input">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold uppercase tracking-wide text-white/60">
-          1. Provide HTML
+    <section className="flex h-full min-h-0 flex-col gap-3" aria-label="HTML input">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="flex items-center gap-2.5 text-sm font-semibold text-white">
+          <span className="step-badge">1</span>
+          Provide HTML
         </h2>
-        {fileName && <span className="text-xs text-white/40">{fileName}</span>}
+        {fileName && (
+          <span className="max-w-[140px] truncate rounded-md bg-white/5 px-2 py-0.5 text-xs text-white/50">
+            {fileName}
+          </span>
+        )}
       </div>
 
       <div className="flex gap-2">
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          className="rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-sm text-white/80 transition hover:bg-white/10"
+          className="inline-flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-3 py-1.5 text-sm font-medium text-white/80 transition hover:border-white/25 hover:bg-white/10"
         >
-          Upload .html file
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+            <polyline points="17 8 12 3 7 8" />
+            <line x1="12" y1="3" x2="12" y2="15" />
+          </svg>
+          Upload .html
         </button>
         <input
           ref={fileInputRef}
@@ -105,11 +115,20 @@ export default function InputPanel() {
         spellCheck={false}
         aria-invalid={Boolean(inputError)}
         aria-describedby={inputError ? 'html-editor-error' : undefined}
-        className="min-h-0 flex-1 resize-none rounded-xl border border-white/10 bg-black/30 p-4 font-mono text-[13px] leading-relaxed text-white/90 outline-none placeholder:text-white/25 focus:border-accent/60"
+        className={`min-h-[140px] flex-1 resize-none rounded-xl border bg-black/40 p-4 font-mono text-[13px] leading-relaxed text-white/90 outline-none transition placeholder:text-white/25 focus:ring-2 ${
+          inputError
+            ? 'border-rose-400/60 focus:ring-rose-500/20'
+            : 'border-white/10 focus:border-accent/60 focus:ring-indigo-500/20'
+        }`}
       />
 
       {inputError && (
-        <p id="html-editor-error" role="alert" className="text-sm text-rose-300">
+        <p id="html-editor-error" role="alert" className="flex items-start gap-1.5 text-sm text-rose-300">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="mt-0.5 shrink-0" aria-hidden="true">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
           {inputError}
         </p>
       )}

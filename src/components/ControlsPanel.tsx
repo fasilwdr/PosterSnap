@@ -1,30 +1,26 @@
 import type { ReactNode } from 'react'
 import { useAppStore } from '../store/appStore'
 import { SIZE_PRESETS } from '../lib/presets'
-import type { ExportFormat, Scale } from '../types'
+import type { Scale } from '../types'
 
 const SCALES: Scale[] = [1, 2, 3]
-const FORMATS: { id: ExportFormat; label: string }[] = [
-  { id: 'png', label: 'PNG' },
-  { id: 'jpg', label: 'JPG' },
-  { id: 'gif', label: 'GIF' },
-  { id: 'pdf', label: 'PDF' },
-]
 
 const GIF_DURATION_SLIDER_MAX_MS = 30_000
 const GIF_DURATION_HARD_MAX_MS = 60_000
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({ label, children }: { label: ReactNode; children: ReactNode }) {
   return (
     <label className="flex flex-col gap-1.5 text-sm">
-      <span className="text-white/60">{label}</span>
+      <span className="text-xs font-medium uppercase tracking-wide text-white/45">{label}</span>
       {children}
     </label>
   )
 }
 
-const inputClass =
-  'rounded-lg border border-white/10 bg-black/30 px-3 py-1.5 text-white/90 outline-none focus:border-accent/60'
+const segBase =
+  'flex-1 rounded-lg border px-3 py-1.5 text-sm font-medium transition focus-visible:outline-none'
+const segActive = 'border-accent/70 bg-accent-strong/25 text-white shadow-[0_0_0_1px_rgba(99,102,241,0.3)]'
+const segIdle = 'border-white/10 bg-black/20 text-white/60 hover:border-white/20 hover:bg-white/5'
 
 export default function ControlsPanel() {
   const presetId = useAppStore((s) => s.presetId)
@@ -44,23 +40,19 @@ export default function ControlsPanel() {
   const setScale = useAppStore((s) => s.setScale)
   const setBackgroundMode = useAppStore((s) => s.setBackgroundMode)
   const setBackgroundColor = useAppStore((s) => s.setBackgroundColor)
-  const setFormat = useAppStore((s) => s.setFormat)
   const setJpgQuality = useAppStore((s) => s.setJpgQuality)
   const setGifFps = useAppStore((s) => s.setGifFps)
   const setGifDurationMs = useAppStore((s) => s.setGifDurationMs)
 
   return (
-    <section className="flex flex-col gap-5" aria-label="Size and export controls">
-      <h2 className="text-sm font-semibold uppercase tracking-wide text-white/60">
-        3. Size &amp; Export
+    <section className="flex flex-col gap-4" aria-label="Size and export controls">
+      <h2 className="flex items-center gap-2.5 text-sm font-semibold text-white">
+        <span className="step-badge">3</span>
+        Size &amp; Export
       </h2>
 
       <Field label="Preset">
-        <select
-          value={presetId}
-          onChange={(e) => applyPreset(e.target.value)}
-          className={inputClass}
-        >
+        <select value={presetId} onChange={(e) => applyPreset(e.target.value)} className="field-input">
           {SIZE_PRESETS.map((preset) => (
             <option key={preset.id} value={preset.id}>
               {preset.label}
@@ -77,7 +69,7 @@ export default function ControlsPanel() {
             max={8000}
             value={width}
             onChange={(e) => setWidth(Math.max(1, Number(e.target.value) || 1))}
-            className={inputClass}
+            className="field-input"
           />
         </Field>
         <Field label="Height (px)">
@@ -87,7 +79,7 @@ export default function ControlsPanel() {
             max={8000}
             value={height}
             onChange={(e) => setHeight(Math.max(1, Number(e.target.value) || 1))}
-            className={inputClass}
+            className="field-input"
           />
         </Field>
       </div>
@@ -100,13 +92,9 @@ export default function ControlsPanel() {
               type="button"
               onClick={() => setScale(s)}
               aria-pressed={scale === s}
-              className={`flex-1 rounded-lg border px-3 py-1.5 text-sm transition ${
-                scale === s
-                  ? 'border-accent bg-accent-strong/30 text-white'
-                  : 'border-white/10 bg-black/20 text-white/60 hover:bg-white/5'
-              }`}
+              className={`${segBase} ${scale === s ? segActive : segIdle}`}
             >
-              {s}x
+              {s}×
             </button>
           ))}
         </div>
@@ -114,13 +102,13 @@ export default function ControlsPanel() {
 
       <Field label="Background">
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1 rounded-lg border border-white/10 bg-black/20 p-1">
+          <div className="flex flex-1 items-center gap-1 rounded-lg border border-white/10 bg-black/20 p-1">
             <button
               type="button"
               onClick={() => setBackgroundMode('solid')}
               aria-pressed={backgroundMode === 'solid'}
-              className={`rounded-md px-2.5 py-1 text-xs transition ${
-                backgroundMode === 'solid' ? 'bg-accent-strong text-white' : 'text-white/60 hover:bg-white/10'
+              className={`flex-1 rounded-md px-2.5 py-1 text-xs font-medium transition ${
+                backgroundMode === 'solid' ? 'bg-accent-strong text-white shadow' : 'text-white/60 hover:bg-white/10'
               }`}
             >
               Solid
@@ -131,8 +119,8 @@ export default function ControlsPanel() {
               disabled={format === 'jpg'}
               aria-pressed={backgroundMode === 'transparent'}
               title={format === 'jpg' ? 'JPG does not support transparency' : undefined}
-              className={`rounded-md px-2.5 py-1 text-xs transition disabled:cursor-not-allowed disabled:opacity-40 ${
-                backgroundMode === 'transparent' ? 'bg-accent-strong text-white' : 'text-white/60 hover:bg-white/10'
+              className={`flex-1 rounded-md px-2.5 py-1 text-xs font-medium transition disabled:cursor-not-allowed disabled:opacity-40 ${
+                backgroundMode === 'transparent' ? 'bg-accent-strong text-white shadow' : 'text-white/60 hover:bg-white/10'
               }`}
             >
               Transparent
@@ -144,29 +132,9 @@ export default function ControlsPanel() {
               value={backgroundColor}
               onChange={(e) => setBackgroundColor(e.target.value)}
               aria-label="Background color"
-              className="h-8 w-10 cursor-pointer rounded border border-white/10 bg-transparent"
+              className="h-9 w-11 shrink-0"
             />
           )}
-        </div>
-      </Field>
-
-      <Field label="Export format">
-        <div className="flex gap-2">
-          {FORMATS.map((f) => (
-            <button
-              key={f.id}
-              type="button"
-              onClick={() => setFormat(f.id)}
-              aria-pressed={format === f.id}
-              className={`flex-1 rounded-lg border px-3 py-1.5 text-sm transition ${
-                format === f.id
-                  ? 'border-accent bg-accent-strong/30 text-white'
-                  : 'border-white/10 bg-black/20 text-white/60 hover:bg-white/5'
-              }`}
-            >
-              {f.label}
-            </button>
-          ))}
         </div>
       </Field>
 
@@ -184,7 +152,7 @@ export default function ControlsPanel() {
       )}
 
       {format === 'gif' && (
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-3 rounded-xl border border-white/10 bg-black/20 p-3">
           <div className="grid grid-cols-2 gap-3">
             <Field label={`FPS — ${gifFps}`}>
               <input
@@ -196,7 +164,7 @@ export default function ControlsPanel() {
                 onChange={(e) => setGifFps(Number(e.target.value))}
               />
             </Field>
-            <Field label="Duration (seconds)">
+            <Field label="Duration (s)">
               <div className="flex items-center gap-2">
                 <input
                   type="range"
@@ -220,15 +188,15 @@ export default function ControlsPanel() {
                     )
                     setGifDurationMs(seconds * 1000)
                   }}
-                  className={`${inputClass} w-16 px-2 py-1 text-sm`}
+                  className="field-input w-16 px-2 py-1 text-sm"
                 />
               </div>
             </Field>
           </div>
-          <p className="text-xs text-white/40">
+          <p className="text-xs leading-relaxed text-white/40">
             ~{Math.max(2, Math.round((gifDurationMs / 1000) * gifFps))} frames will be captured.
-            Longer durations, higher fps, and higher export scale all make the export slower and
-            the file bigger.
+            Longer durations, higher fps, and higher export scale all make the export slower and the
+            file bigger.
           </p>
         </div>
       )}

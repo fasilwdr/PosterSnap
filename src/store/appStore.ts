@@ -67,7 +67,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   width: defaultPreset.width,
   height: defaultPreset.height,
   scale: 1,
-  backgroundMode: 'solid',
+  backgroundMode: 'transparent',
   backgroundColor: '#ffffff',
 
   format: 'png',
