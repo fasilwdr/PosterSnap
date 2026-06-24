@@ -64,6 +64,108 @@ export async function exportJpg(
   return canvasToBlob(canvas, 'image/jpeg', quality)
 }
 
+export async function exportWebp(
+  iframe: HTMLIFrameElement,
+  opts: CaptureOptions,
+  quality: number,
+): Promise<Blob> {
+  const canvas = await captureCanvas(iframe, opts)
+  const blob = await canvasToBlob(canvas, 'image/webp', quality)
+  // Browsers that can't encode a requested type silently fall back to PNG
+  // instead of rejecting — check the returned mime to detect that.
+  if (blob.type !== 'image/webp') {
+    throw new Error('This browser cannot encode WebP images.')
+  }
+  return blob
+}
+
+export async function exportAvif(
+  iframe: HTMLIFrameElement,
+  opts: CaptureOptions,
+  quality: number,
+): Promise<Blob> {
+  const canvas = await captureCanvas(iframe, opts)
+  const blob = await canvasToBlob(canvas, 'image/avif', quality)
+  if (blob.type !== 'image/avif') {
+    throw new Error('This browser cannot encode AVIF images yet — try a recent Chrome or Firefox.')
+  }
+  return blob
+}
+
+const ICO_SIZES = [16, 32, 48, 256] as const
+
+function resizeCanvas(source: HTMLCanvasElement, size: number): HTMLCanvasElement {
+  const canvas = document.createElement('canvas')
+  canvas.width = size
+  canvas.height = size
+  const ctx = canvas.getContext('2d')
+  if (!ctx) throw new Error('Could not create a canvas context for ICO resizing.')
+  ctx.imageSmoothingQuality = 'high'
+  ctx.drawImage(source, 0, 0, size, size)
+  return canvas
+}
+
+/**
+ * Packs the rendered capture into a multi-resolution .ico (16/32/48/256px),
+ * each entry embedding a PNG directly — supported by Windows Vista+ and every
+ * modern ICO reader, so no BMP re-encoding is needed.
+ */
+export async function exportIco(iframe: HTMLIFrameElement, opts: CaptureOptions): Promise<Blob> {
+  const canvas = await captureCanvas(iframe, opts)
+  const pngBuffers = await Promise.all(
+    ICO_SIZES.map(async (size) => {
+      const blob = await canvasToBlob(resizeCanvas(canvas, size), 'image/png')
+      return new Uint8Array(await blob.arrayBuffer())
+    }),
+  )
+
+  const headerSize = 6 + 16 * pngBuffers.length
+  const totalSize = headerSize + pngBuffers.reduce((sum, buf) => sum + buf.length, 0)
+  const out = new Uint8Array(totalSize)
+  const view = new DataView(out.buffer)
+
+  view.setUint16(2, 1, true) // type: icon
+  view.setUint16(4, pngBuffers.length, true)
+
+  let dataOffset = headerSize
+  pngBuffers.forEach((buf, i) => {
+    const entryOffset = 6 + i * 16
+    const size = ICO_SIZES[i]
+    out[entryOffset] = size >= 256 ? 0 : size // width (0 means 256)
+    out[entryOffset + 1] = size >= 256 ? 0 : size // height (0 means 256)
+    view.setUint16(entryOffset + 4, 1, true) // color planes
+    view.setUint16(entryOffset + 6, 32, true) // bits per pixel
+    view.setUint32(entryOffset + 8, buf.length, true) // bytes in resource
+    view.setUint32(entryOffset + 12, dataOffset, true) // offset of image data
+    out.set(buf, dataOffset)
+    dataOffset += buf.length
+  })
+
+  return new Blob([out], { type: 'image/x-icon' })
+}
+
+/**
+ * Wraps the iframe's live, parsed document in an SVG <foreignObject>. This is
+ * not a vector trace of the artwork — it's the original HTML/CSS re-embedded
+ * inside an SVG shell, so it stays crisp at any scale and re-renders in
+ * browsers/other web pages, but most vector editors (Illustrator, Inkscape,
+ * Figma) don't support foreignObject styling and will show it blank or
+ * unstyled. Serializing the *parsed* DOM (via XMLSerializer), rather than the
+ * raw HTML string, is what guarantees well-formed XML here — arbitrary HTML
+ * (unescaped `&`, unclosed void tags, etc.) is not valid XML on its own.
+ */
+export async function exportSvg(iframe: HTMLIFrameElement, opts: CaptureOptions): Promise<Blob> {
+  const doc = iframe.contentDocument
+  if (!doc?.documentElement) {
+    throw new Error('Preview is not ready yet. Click Render and wait for the preview to load.')
+  }
+  const serializedHtml = new XMLSerializer().serializeToString(doc.documentElement)
+  const background =
+    opts.backgroundMode === 'solid' ? `<rect width="100%" height="100%" fill="${opts.backgroundColor}"/>` : ''
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${opts.width}" height="${opts.height}" viewBox="0 0 ${opts.width} ${opts.height}">${background}<foreignObject x="0" y="0" width="${opts.width}" height="${opts.height}">${serializedHtml}</foreignObject></svg>`
+  return new Blob([svg], { type: 'image/svg+xml' })
+}
+
 export async function exportPdf(iframe: HTMLIFrameElement, opts: CaptureOptions): Promise<Blob> {
   const [{ jsPDF }, canvas] = await Promise.all([import('jspdf'), captureCanvas(iframe, opts)])
   const dataUrl = canvas.toDataURL('image/png')
@@ -252,21 +354,37 @@ function teardownAnimationRig(rig: AnimationRig): void {
   }
 }
 
-export interface GifOptions extends CaptureOptions {
+export interface AnimationCaptureOptions extends CaptureOptions {
   fps: number
   durationMs: number
   onProgress?: (fraction: number) => void
 }
 
-export async function exportGif(iframe: HTMLIFrameElement, opts: GifOptions): Promise<Blob> {
-  const { fps, durationMs, onProgress, ...rawCaptureOpts } = opts
+interface FrameTiming {
+  frameInterval: number
+  frameCount: number
+}
+
+function computeFrameTiming(fps: number, durationMs: number): FrameTiming {
   const frameInterval = Math.max(20, Math.round(1000 / fps))
   const frameCount = Math.max(2, Math.round(durationMs / frameInterval))
-  // Each frame re-runs a full html2canvas capture; capping resolution keeps
-  // per-frame cost low enough to actually keep up with the requested fps.
-  const captureOpts = { ...rawCaptureOpts, scale: Math.min(rawCaptureOpts.scale, 2) }
+  return { frameInterval, frameCount }
+}
 
-  const [{ default: GIF }] = await Promise.all([import('gif.js'), restartAnimation(iframe)])
+/**
+ * Drives the per-frame capture loop shared by every animated export format
+ * (GIF, APNG, …): restarts the iframe's animation, builds the seekable
+ * animation rig, then for each frame seeks + captures + hands the canvas to
+ * `onFrame` for that format's own encoder to consume.
+ */
+async function runAnimationCapture(
+  iframe: HTMLIFrameElement,
+  captureOpts: CaptureOptions,
+  timing: FrameTiming,
+  onProgress: ((fraction: number) => void) | undefined,
+  onFrame: (canvas: HTMLCanvasElement, frameIndex: number) => void | Promise<void>,
+): Promise<void> {
+  await restartAnimation(iframe)
 
   const doc = iframe.contentDocument
   if (!doc) {
@@ -274,6 +392,40 @@ export async function exportGif(iframe: HTMLIFrameElement, opts: GifOptions): Pr
   }
   const rig = prepareAnimationRig(doc)
   const view = doc.defaultView ?? window
+
+  // CSS-driven animations are deterministically seeked per frame (above), so
+  // their timing no longer depends on real wall-clock pacing. We still wait
+  // out the real cadence between captures so any JS-driven (e.g.
+  // requestAnimationFrame) effects in the user's HTML keep progressing
+  // naturally, since those can't be paused/seeked the same way.
+  const startTime = performance.now()
+  for (let i = 0; i < timing.frameCount; i++) {
+    const targetElapsed = i * timing.frameInterval
+    const remaining = targetElapsed - (performance.now() - startTime)
+    if (remaining > 0) {
+      await new Promise((resolve) => setTimeout(resolve, remaining))
+    }
+
+    await seekFrame(rig, view, targetElapsed)
+    const canvas = await captureCanvas(iframe, captureOpts)
+
+    await onFrame(canvas, i)
+    onProgress?.((i + 1) / timing.frameCount)
+  }
+
+  teardownAnimationRig(rig)
+}
+
+export type GifOptions = AnimationCaptureOptions
+
+export async function exportGif(iframe: HTMLIFrameElement, opts: GifOptions): Promise<Blob> {
+  const { fps, durationMs, onProgress, ...rawCaptureOpts } = opts
+  const timing = computeFrameTiming(fps, durationMs)
+  // Each frame re-runs a full html2canvas capture; capping resolution keeps
+  // per-frame cost low enough to actually keep up with the requested fps.
+  const captureOpts = { ...rawCaptureOpts, scale: Math.min(rawCaptureOpts.scale, 2) }
+
+  const [{ default: GIF }] = await Promise.all([import('gif.js')])
 
   const gif = new GIF({
     workers: 2,
@@ -283,27 +435,9 @@ export async function exportGif(iframe: HTMLIFrameElement, opts: GifOptions): Pr
     workerScript: `${import.meta.env.BASE_URL}gif.worker.js`,
   })
 
-  // CSS-driven animations are deterministically seeked per frame (above), so
-  // their timing no longer depends on real wall-clock pacing. We still wait
-  // out the real cadence between captures so any JS-driven (e.g.
-  // requestAnimationFrame) effects in the user's HTML keep progressing
-  // naturally, since those can't be paused/seeked the same way.
-  const startTime = performance.now()
-  for (let i = 0; i < frameCount; i++) {
-    const targetElapsed = i * frameInterval
-    const remaining = targetElapsed - (performance.now() - startTime)
-    if (remaining > 0) {
-      await new Promise((resolve) => setTimeout(resolve, remaining))
-    }
-
-    await seekFrame(rig, view, targetElapsed)
-    const canvas = await captureCanvas(iframe, captureOpts)
-
-    gif.addFrame(canvas, { copy: true, delay: frameInterval })
-    onProgress?.((i + 1) / frameCount)
-  }
-
-  teardownAnimationRig(rig)
+  await runAnimationCapture(iframe, captureOpts, timing, onProgress, (canvas) => {
+    gif.addFrame(canvas, { copy: true, delay: timing.frameInterval })
+  })
 
   return new Promise((resolve, reject) => {
     gif.on('finished', (blob: Blob) => resolve(blob))
@@ -314,4 +448,38 @@ export async function exportGif(iframe: HTMLIFrameElement, opts: GifOptions): Pr
       reject(err instanceof Error ? err : new Error('GIF encoding failed.'))
     }
   })
+}
+
+export type ApngOptions = AnimationCaptureOptions
+
+/**
+ * Animated PNG export: reuses the exact same animation-seek rig as GIF, but
+ * encodes the raw RGBA frames with UPNG.js instead of gif.js. Unlike GIF,
+ * this keeps true 8-bit alpha and isn't limited to a 256-color palette, so
+ * transparent animated posters don't dither or lose their background.
+ */
+export async function exportApng(iframe: HTMLIFrameElement, opts: ApngOptions): Promise<Blob> {
+  const { fps, durationMs, onProgress, ...rawCaptureOpts } = opts
+  const timing = computeFrameTiming(fps, durationMs)
+  const captureOpts = { ...rawCaptureOpts, scale: Math.min(rawCaptureOpts.scale, 2) }
+
+  const [{ default: UPNG }] = await Promise.all([import('upng-js')])
+
+  const frames: ArrayBuffer[] = []
+  const delays: number[] = []
+  let pixelWidth = 0
+  let pixelHeight = 0
+
+  await runAnimationCapture(iframe, captureOpts, timing, onProgress, (canvas) => {
+    pixelWidth = canvas.width
+    pixelHeight = canvas.height
+    const ctx = canvas.getContext('2d')
+    if (!ctx) throw new Error('Could not read canvas pixels for APNG encoding.')
+    frames.push(ctx.getImageData(0, 0, canvas.width, canvas.height).data.buffer)
+    delays.push(timing.frameInterval)
+  })
+
+  // colors=0 keeps full 8-bit truecolor + alpha (no palette quantization).
+  const buffer = UPNG.encode(frames, pixelWidth, pixelHeight, 0, delays)
+  return new Blob([buffer], { type: 'image/png' })
 }

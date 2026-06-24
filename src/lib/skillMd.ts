@@ -3,16 +3,16 @@ export const SKILL_MD_FILENAME = 'SKILL.md'
 export function generateSkillMd(): string {
   return `---
 name: html-to-image
-description: Convert a self-contained HTML/CSS/JS snippet into a marketing-ready PNG, JPG, PDF, or animated GIF with PosterSnap. Use when turning an HTML/CSS mockup into an exportable poster, social post, print-ready PDF, or ad creative without opening a design tool.
+description: Convert a self-contained HTML/CSS/JS snippet into a marketing-ready PNG, JPG, WebP, AVIF, PDF, SVG, ICO, or animated GIF/APNG with PosterSnap. Use when turning an HTML/CSS mockup into an exportable poster, social post, print-ready PDF, favicon, or ad creative without opening a design tool.
 ---
 
 # PosterSnap — HTML-to-Image Conversion Skill
 
 ## 1. Purpose
 PosterSnap turns a self-contained HTML/CSS/JS snippet into a marketing-ready
-image (PNG, JPG, PDF, or animated GIF). Use it to turn a quick visual mockup
-into an exportable poster, social post, print-ready PDF, or ad creative
-without opening a design tool.
+image (PNG, JPG, WebP, AVIF, PDF, SVG, ICO, or animated GIF/APNG). Use it to
+turn a quick visual mockup into an exportable poster, social post,
+print-ready PDF, favicon, or ad creative without opening a design tool.
 
 ## 2. How to Provide HTML
 
@@ -29,13 +29,15 @@ without opening a design tool.
 ### Exporting
 1. Set the canvas **Width/Height** (or pick a size **Preset**) and choose a
    **Background** (transparent by default, or a solid color).
-2. In the bottom bar, pick a **format** (PNG / JPG / GIF / PDF) and click
-   **Export**. The file downloads straight to your device.
+2. In the bottom bar, pick a **format** (PNG / JPG / WebP / AVIF / GIF /
+   APNG / PDF / SVG / ICO) and click **Export**. The file downloads straight
+   to your device. **Copy PNG** copies a PNG snapshot straight to the
+   clipboard instead of downloading a file.
 
 ## 3. Supported Features
 - Inline \`<style>\` blocks and inline \`style="..."\` attributes.
 - Inline \`<script>\` blocks (executed inside a sandboxed preview iframe).
-- CSS animations and transitions (captured by the GIF exporter).
+- CSS animations and transitions (captured by the GIF and APNG exporters).
 - Web-safe fonts and \`@font-face\` declarations using embedded/base64 or
   publicly reachable font URLs.
 - Background images and gradients. A transparent background is enabled by
@@ -46,8 +48,14 @@ without opening a design tool.
 - External resources blocked by CORS (cross-origin images/fonts may render
   blank in the exported image even if they preview correctly).
 - Multi-page documents — only the first viewport-sized frame is captured.
-- Video elements and WebGL/canvas-heavy animations in GIF export (frame
+- Video elements and WebGL/canvas-heavy animations in GIF/APNG export (frame
   capture works best with CSS/DOM animation).
+- AVIF encoding depends on the browser's own \`canvas.toBlob\` support
+  (recent Chrome/Firefox); unsupported browsers get an error toast instead
+  of a silently wrong file.
+- SVG export is not a vector trace of the artwork — it re-embeds the
+  original HTML/CSS inside an SVG \`<foreignObject>\`, so it renders correctly
+  in browsers but not in vector editors like Illustrator/Inkscape/Figma.
 
 ## 4. Best Practices
 - Set an explicit \`width\`/\`height\` (or use a size preset) that matches your
@@ -56,10 +64,12 @@ without opening a design tool.
   root element as your canvas instead.
 - Inline critical CSS rather than linking external stylesheets, since
   cross-origin stylesheets can fail to load inside the sandboxed preview.
-- For GIF export, FPS and duration are adjustable up to 60s; longer
+- For GIF/APNG export, FPS and duration are adjustable up to 60s; longer
   durations and higher FPS produce much larger files and slower exports,
   so keep animations as short as the design needs.
 - Test at 1x scale first, then bump to 2x/3x only for final high-res export.
+- For ICO export, use a square canvas (equal width/height) — non-square
+  canvases get stretched to fit each icon size.
 
 ## 5. Example HTML Template
 
@@ -106,7 +116,11 @@ without opening a design tool.
 ## 6. Export Tips
 - **PNG**: best for designs needing transparency or crisp text/logos.
 - **JPG**: smaller file size for photo-heavy posters; tune the quality
-  slider to balance size vs. fidelity.
+  slider to balance size vs. fidelity. No transparency support.
+- **WebP**: usually smaller than PNG/JPG at similar quality, and keeps
+  transparency — a good default for web use.
+- **AVIF**: smaller still than WebP in most cases, but needs a recent
+  Chrome/Firefox to encode; falls back to an error toast on older browsers.
 - **PDF**: a single-page, pixel-accurate PDF sized to your canvas — useful
   for print-ready handoff or sharing a poster as a document.
 - **GIF**: only worth using when your HTML actually animates (CSS keyframes,
@@ -115,7 +129,17 @@ without opening a design tool.
   by deterministically seeking each frame, so even finite (non-looping)
   animations are captured correctly frame-by-frame instead of as a single
   frozen frame. GIF export is capped at 2x scale (even if 3x is selected) to
-  keep per-frame capture fast.
+  keep per-frame capture fast, and is limited to a 256-color palette.
+- **APNG**: an animated PNG alternative to GIF using the same frame-by-frame
+  capture — keeps full 8-bit alpha transparency and avoids GIF's color/
+  dithering limits, at the cost of a larger file.
+- **SVG**: embeds the original HTML/CSS inside an SVG \`<foreignObject>\` —
+  scales crisply and reopens correctly in browsers, but not in vector
+  editors (Illustrator/Inkscape/Figma).
+- **ICO**: packs a 16/32/48/256px multi-resolution favicon from a square
+  canvas; best for app icons and favicons rather than posters.
+- **Copy PNG**: copies a PNG snapshot straight to the clipboard, for pasting
+  into chat apps, docs, or design tools without a separate download step.
 - Filenames follow the pattern \`postersnap_{timestamp}_{width}x{height}.{ext}\`.
 
 ## 7. Troubleshooting

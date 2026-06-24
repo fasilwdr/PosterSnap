@@ -20,9 +20,9 @@ interface AppState {
 
   // Export controls
   format: ExportFormat
-  jpgQuality: number
-  gifFps: number
-  gifDurationMs: number
+  imageQuality: number
+  animationFps: number
+  animationDurationMs: number
 
   // Preview
   zoom: ZoomLevel
@@ -36,6 +36,9 @@ interface AppState {
   // Toasts
   toasts: ToastMessage[]
 
+  // Usage counter (Abacus), shown in the header
+  exportCount: number | null
+
   setHtml: (html: string) => void
   setFileName: (name: string | null) => void
   setInputError: (error: string | null) => void
@@ -46,9 +49,9 @@ interface AppState {
   setBackgroundMode: (mode: BackgroundMode) => void
   setBackgroundColor: (color: string) => void
   setFormat: (format: ExportFormat) => void
-  setJpgQuality: (quality: number) => void
-  setGifFps: (fps: number) => void
-  setGifDurationMs: (ms: number) => void
+  setImageQuality: (quality: number) => void
+  setAnimationFps: (fps: number) => void
+  setAnimationDurationMs: (ms: number) => void
   setZoom: (zoom: ZoomLevel) => void
   triggerRender: () => void
   setIsRendered: (rendered: boolean) => void
@@ -56,6 +59,7 @@ interface AppState {
   setExportProgress: (progress: number) => void
   pushToast: (kind: ToastMessage['kind'], text: string) => void
   dismissToast: (id: string) => void
+  setExportCount: (count: number | null) => void
 }
 
 export const useAppStore = create<AppState>((set, get) => ({
@@ -71,9 +75,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   backgroundColor: '#ffffff',
 
   format: 'png',
-  jpgQuality: 0.9,
-  gifFps: 10,
-  gifDurationMs: 2000,
+  imageQuality: 0.9,
+  animationFps: 10,
+  animationDurationMs: 2000,
 
   zoom: 'fit',
   renderToken: 0,
@@ -83,6 +87,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   exportProgress: 0,
 
   toasts: [],
+
+  exportCount: null,
 
   setHtml: (html) => set({ html, isRendered: false }),
   setFileName: (fileName) => set({ fileName }),
@@ -104,9 +110,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       format,
       backgroundMode: format === 'jpg' ? 'solid' : state.backgroundMode,
     })),
-  setJpgQuality: (jpgQuality) => set({ jpgQuality }),
-  setGifFps: (gifFps) => set({ gifFps }),
-  setGifDurationMs: (gifDurationMs) => set({ gifDurationMs }),
+  setImageQuality: (imageQuality) => set({ imageQuality }),
+  setAnimationFps: (animationFps) => set({ animationFps }),
+  setAnimationDurationMs: (animationDurationMs) => set({ animationDurationMs }),
 
   setZoom: (zoom) => set({ zoom }),
   triggerRender: () => set((state) => ({ renderToken: state.renderToken + 1, isRendered: false })),
@@ -121,4 +127,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     setTimeout(() => get().dismissToast(id), 4500)
   },
   dismissToast: (id) => set((state) => ({ toasts: state.toasts.filter((t) => t.id !== id) })),
+
+  setExportCount: (exportCount) => set({ exportCount }),
 }))

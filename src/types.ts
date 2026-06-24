@@ -1,4 +1,4 @@
-export type ExportFormat = 'png' | 'jpg' | 'gif' | 'pdf'
+export type ExportFormat = 'png' | 'jpg' | 'webp' | 'avif' | 'gif' | 'apng' | 'pdf' | 'svg' | 'ico'
 
 export type BackgroundMode = 'transparent' | 'solid'
 

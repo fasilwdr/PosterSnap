@@ -1,4 +1,17 @@
+import { useEffect } from 'react'
+import { useAppStore } from '../store/appStore'
+import { fetchExportCount } from '../lib/analytics'
+
 export default function Header() {
+  const exportCount = useAppStore((s) => s.exportCount)
+  const setExportCount = useAppStore((s) => s.setExportCount)
+
+  useEffect(() => {
+    fetchExportCount().then((count) => {
+      if (count !== null) setExportCount(count)
+    })
+  }, [setExportCount])
+
   return (
     <header className="sticky top-0 z-30 border-b border-white/10 bg-[#07060f]/70 backdrop-blur-xl">
       <div className="mx-auto flex w-full max-w-[1600px] items-center justify-between gap-3 px-4 py-3 sm:px-6 sm:py-4">
@@ -11,11 +24,24 @@ export default function Header() {
             <h1 className="text-base font-semibold tracking-tight text-white sm:text-lg">
               Poster<span className="brand-gradient">Snap</span>
             </h1>
-            <p className="text-[11px] text-white/45 sm:text-xs">HTML → PNG · JPG · GIF · PDF</p>
+            <p className="text-[11px] text-white/45 sm:text-xs">HTML → PNG · JPG · WebP · AVIF · GIF · APNG · PDF · SVG · ICO</p>
           </div>
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
+          {exportCount !== null && (
+            <span
+              title="Total exports across all PosterSnap users"
+              className="inline-flex items-center gap-1.5 rounded-full border border-indigo-400/25 bg-indigo-500/10 px-3 py-1 text-xs font-medium text-indigo-200"
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              {exportCount.toLocaleString()} exports
+            </span>
+          )}
           <span className="hidden items-center gap-1.5 rounded-full border border-emerald-400/25 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-300 sm:inline-flex">
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_8px_2px_rgba(52,211,153,0.6)]" />
             100% in-browser

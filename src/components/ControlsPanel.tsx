@@ -30,9 +30,9 @@ export default function ControlsPanel() {
   const backgroundMode = useAppStore((s) => s.backgroundMode)
   const backgroundColor = useAppStore((s) => s.backgroundColor)
   const format = useAppStore((s) => s.format)
-  const jpgQuality = useAppStore((s) => s.jpgQuality)
-  const gifFps = useAppStore((s) => s.gifFps)
-  const gifDurationMs = useAppStore((s) => s.gifDurationMs)
+  const imageQuality = useAppStore((s) => s.imageQuality)
+  const animationFps = useAppStore((s) => s.animationFps)
+  const animationDurationMs = useAppStore((s) => s.animationDurationMs)
 
   const applyPreset = useAppStore((s) => s.applyPreset)
   const setWidth = useAppStore((s) => s.setWidth)
@@ -40,9 +40,12 @@ export default function ControlsPanel() {
   const setScale = useAppStore((s) => s.setScale)
   const setBackgroundMode = useAppStore((s) => s.setBackgroundMode)
   const setBackgroundColor = useAppStore((s) => s.setBackgroundColor)
-  const setJpgQuality = useAppStore((s) => s.setJpgQuality)
-  const setGifFps = useAppStore((s) => s.setGifFps)
-  const setGifDurationMs = useAppStore((s) => s.setGifDurationMs)
+  const setImageQuality = useAppStore((s) => s.setImageQuality)
+  const setAnimationFps = useAppStore((s) => s.setAnimationFps)
+  const setAnimationDurationMs = useAppStore((s) => s.setAnimationDurationMs)
+
+  const isQualityFormat = format === 'jpg' || format === 'webp' || format === 'avif'
+  const isAnimatedFormat = format === 'gif' || format === 'apng'
 
   return (
     <section className="flex flex-col gap-4" aria-label="Size and export controls">
@@ -83,6 +86,12 @@ export default function ControlsPanel() {
           />
         </Field>
       </div>
+
+      {format === 'ico' && width !== height && (
+        <p className="rounded-lg border border-amber-400/25 bg-amber-500/10 px-3 py-2 text-xs leading-relaxed text-amber-200">
+          ICO favicons are square — a {width}×{height} canvas will be stretched to fit each icon size.
+        </p>
+      )}
 
       <Field label="Export scale (resolution)">
         <div className="flex gap-2">
@@ -138,30 +147,30 @@ export default function ControlsPanel() {
         </div>
       </Field>
 
-      {format === 'jpg' && (
-        <Field label={`JPG quality — ${Math.round(jpgQuality * 100)}%`}>
+      {isQualityFormat && (
+        <Field label={`${format.toUpperCase()} quality — ${Math.round(imageQuality * 100)}%`}>
           <input
             type="range"
             min={0.4}
             max={1}
             step={0.05}
-            value={jpgQuality}
-            onChange={(e) => setJpgQuality(Number(e.target.value))}
+            value={imageQuality}
+            onChange={(e) => setImageQuality(Number(e.target.value))}
           />
         </Field>
       )}
 
-      {format === 'gif' && (
+      {isAnimatedFormat && (
         <div className="flex flex-col gap-3 rounded-xl border border-white/10 bg-black/20 p-3">
           <div className="grid grid-cols-2 gap-3">
-            <Field label={`FPS — ${gifFps}`}>
+            <Field label={`FPS — ${animationFps}`}>
               <input
                 type="range"
                 min={2}
                 max={24}
                 step={1}
-                value={gifFps}
-                onChange={(e) => setGifFps(Number(e.target.value))}
+                value={animationFps}
+                onChange={(e) => setAnimationFps(Number(e.target.value))}
               />
             </Field>
             <Field label="Duration (s)">
@@ -171,8 +180,8 @@ export default function ControlsPanel() {
                   min={0.5}
                   max={GIF_DURATION_SLIDER_MAX_MS / 1000}
                   step={0.25}
-                  value={Math.min(gifDurationMs, GIF_DURATION_SLIDER_MAX_MS) / 1000}
-                  onChange={(e) => setGifDurationMs(Number(e.target.value) * 1000)}
+                  value={Math.min(animationDurationMs, GIF_DURATION_SLIDER_MAX_MS) / 1000}
+                  onChange={(e) => setAnimationDurationMs(Number(e.target.value) * 1000)}
                   className="flex-1"
                 />
                 <input
@@ -180,13 +189,13 @@ export default function ControlsPanel() {
                   min={0.5}
                   max={GIF_DURATION_HARD_MAX_MS / 1000}
                   step={0.5}
-                  value={gifDurationMs / 1000}
+                  value={animationDurationMs / 1000}
                   onChange={(e) => {
                     const seconds = Math.min(
                       GIF_DURATION_HARD_MAX_MS / 1000,
                       Math.max(0.5, Number(e.target.value) || 0.5),
                     )
-                    setGifDurationMs(seconds * 1000)
+                    setAnimationDurationMs(seconds * 1000)
                   }}
                   className="field-input w-16 px-2 py-1 text-sm"
                 />
@@ -194,9 +203,9 @@ export default function ControlsPanel() {
             </Field>
           </div>
           <p className="text-xs leading-relaxed text-white/40">
-            ~{Math.max(2, Math.round((gifDurationMs / 1000) * gifFps))} frames will be captured.
+            ~{Math.max(2, Math.round((animationDurationMs / 1000) * animationFps))} frames will be captured.
             Longer durations, higher fps, and higher export scale all make the export slower and the
-            file bigger.
+            file bigger.{format === 'apng' && ' APNG keeps full alpha transparency and avoids GIF’s 256-color dithering.'}
           </p>
         </div>
       )}
