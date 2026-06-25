@@ -18,7 +18,7 @@ function App() {
         3 Size & Export. Desktop: a 2-column grid where the left column stacks
         Input (row 1) over Controls (row 2) and the Preview spans both rows on the right.
       */}
-      <main className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-4 p-4 sm:gap-5 sm:p-5 lg:grid lg:min-h-0 lg:grid-cols-[minmax(340px,400px)_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)_auto] lg:overflow-hidden">
+      <main className="mx-auto flex w-full max-w-[1600px] flex-1 flex-col gap-4 p-4 sm:gap-5 sm:p-5 lg:grid lg:min-h-0 lg:grid-cols-[minmax(340px,400px)_minmax(0,1fr)] lg:grid-rows-[minmax(0,2fr)_minmax(0,3fr)] lg:overflow-hidden">
         {/* 1. Provide HTML — left column, top */}
         <div className="glass-panel flex min-h-[300px] flex-col rounded-2xl p-4 sm:p-5 lg:col-start-1 lg:row-start-1 lg:min-h-0 lg:overflow-y-auto">
           <InputPanel />
@@ -32,7 +32,12 @@ function App() {
           <PreviewPane ref={iframeRef} />
         </div>
 
-        {/* 3. Size & Export — left column, bottom */}
+        {/* 3. Size & Export — left column, bottom.
+            The left column uses two definite fr rows (1.3fr / 1fr) rather than a
+            content-sized `auto` row, so this panel can't grow into row 1 and
+            squeeze the HTML input out of reach when animated formats add extra
+            controls (Start at / FPS / Duration). It gets a fixed ~43% share and
+            scrolls internally; the HTML input keeps ~57%. */}
         <div className="glass-panel rounded-2xl p-4 sm:p-5 lg:col-start-1 lg:row-start-2 lg:min-h-0 lg:overflow-y-auto">
           <ControlsPanel iframeRef={iframeRef} />
         </div>
