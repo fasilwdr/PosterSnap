@@ -1,4 +1,4 @@
-import html2canvas from 'html2canvas'
+import { domToCanvas } from 'modern-screenshot'
 import type { BackgroundMode } from '../types'
 
 export interface CaptureOptions {
@@ -22,13 +22,20 @@ export async function captureCanvas(
   { width, height, scale, backgroundMode, backgroundColor }: CaptureOptions,
 ): Promise<HTMLCanvasElement> {
   const root = getIframeRoot(iframe)
-  return html2canvas(root, {
+  // modern-screenshot rasterizes by serializing the node into an SVG
+  // <foreignObject> and letting the browser's own engine paint it. Unlike
+  // html2canvas (which reimplements CSS itself and silently drops anything it
+  // doesn't support), this renders gradient-clipped text
+  // (`background-clip: text`), `backdrop-filter`, `filter`, `mix-blend-mode`,
+  // etc. exactly as they appear in the live preview — so the export matches
+  // what the user sees. It also auto-embeds same-origin/CORS-enabled images
+  // and @font-face fonts as data URLs so they survive the foreignObject
+  // sandbox (which has no network access).
+  return domToCanvas(root, {
     width,
     height,
     scale,
     backgroundColor: backgroundMode === 'transparent' ? null : backgroundColor,
-    useCORS: true,
-    logging: false,
   })
 }
 
@@ -228,27 +235,23 @@ function toKebabCase(prop: string): string {
 }
 
 /**
- * html2canvas doesn't actually read the live DOM directly — it builds its
- * own clone of the document to capture from. Cloning copies attributes and
- * inline styles, but not runtime animation state, so a Web Animations API
- * effect seeked via `currentTime` has no visible effect on the clone unless
- * its resulting computed style is baked into a literal inline style first.
+ * Like every clone-based rasterizer (html2canvas, and now modern-screenshot's
+ * foreignObject pipeline), the exporter doesn't snapshot the live DOM in
+ * place — it builds a clone to paint from. A *live* CSS animation would be
+ * sampled at whatever wall-clock moment the clone happens to read it, so
+ * naively capturing an animation yields an unpredictable (often "finished",
+ * with `animation-fill-mode: forwards`) pose on every frame instead of a
+ * controlled progression.
  *
- * Separately, html2canvas also forcibly zeroes `animationDuration` on any
- * element with an active CSS animation (`animation-duration` > 0) before
- * cloning, presumably to get a stable read. Combined with
- * `animation-fill-mode: forwards`, that snaps an in-progress animation
- * straight to its end keyframe — so naively capturing a *live* CSS
- * animation produces the same "finished" pose on every frame.
- *
- * The fix combines both: each CSS animation is permanently disabled
- * (`animation: none`) for the whole export — so html2canvas never sees a
- * non-zero animation-duration to neutralize — and re-created as an
- * independent Web Animations API `Animation`, detached from the `animation`
- * CSS property, using the same keyframes/timing. That detached animation is
- * seeked once per frame; doing the disable/re-create just once up front
- * (rather than toggling it every frame) avoids forcing the browser to
- * recreate the implicit CSS animation's internal state on every capture.
+ * The fix: each CSS animation is permanently disabled (`animation: none`) for
+ * the whole export and re-created as an independent Web Animations API
+ * `Animation`, detached from the `animation` CSS property, using the same
+ * keyframes/timing. That detached animation is deterministically seeked once
+ * per frame (`currentTime`), and its resulting computed style is baked into a
+ * literal inline style so the clone reproduces exactly that frame. Doing the
+ * disable/re-create just once up front (rather than toggling it every frame)
+ * avoids forcing the browser to recreate the implicit CSS animation's
+ * internal state on every capture.
  */
 function prepareAnimationRig(doc: Document): AnimationRig {
   // The iframe's content runs in a separate JS realm, so constructing
@@ -322,10 +325,9 @@ async function seekFrame(rig: AnimationRig, view: Window, timeMs: number): Promi
   })
 
   // Bake the seeked animation's resulting computed style into a literal
-  // inline style, since that's what html2canvas's internal clone actually
-  // sees — overwrites the previous frame's baked value, so no per-frame
-  // restore is needed (only the original pre-export value, restored once at
-  // teardown).
+  // inline style, since that's what the rasterizer's clone actually sees —
+  // overwrites the previous frame's baked value, so no per-frame restore is
+  // needed (only the original pre-export value, restored once at teardown).
   // Baked values must NOT use `!important`: the CSS cascade ranks animation
   // effects *above* normal-priority author declarations but *below*
   // `!important` ones. An `!important` bake would permanently outrank the
@@ -333,7 +335,7 @@ async function seekFrame(rig: AnimationRig, view: Window, timeMs: number): Promi
   // computed-style read, freezing every frame at whatever value was first
   // baked. A normal-priority bake loses to the still-active animation when
   // read back here (so each frame reflects the live seek), while still
-  // being visible to html2canvas's clone, which has no competing animation.
+  // being visible to the clone, which has no competing animation.
   for (const { el, props } of rig.targets) {
     const computed = getComputedStyle(el)
     for (const prop of props) {
@@ -421,8 +423,8 @@ export type GifOptions = AnimationCaptureOptions
 export async function exportGif(iframe: HTMLIFrameElement, opts: GifOptions): Promise<Blob> {
   const { fps, durationMs, onProgress, ...rawCaptureOpts } = opts
   const timing = computeFrameTiming(fps, durationMs)
-  // Each frame re-runs a full html2canvas capture; capping resolution keeps
-  // per-frame cost low enough to actually keep up with the requested fps.
+  // Each frame re-runs a full capture; capping resolution keeps per-frame
+  // cost low enough to actually keep up with the requested fps.
   const captureOpts = { ...rawCaptureOpts, scale: Math.min(rawCaptureOpts.scale, 2) }
 
   const [{ default: GIF }] = await Promise.all([import('gif.js')])

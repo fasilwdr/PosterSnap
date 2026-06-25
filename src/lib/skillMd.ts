@@ -35,18 +35,33 @@ print-ready PDF, favicon, or ad creative without opening a design tool.
    clipboard instead of downloading a file.
 
 ## 3. Supported Features
+PosterSnap rasterizes by re-rendering your markup through the browser's own
+engine (an SVG \`<foreignObject>\` snapshot), so the exported image matches the
+live preview pixel-for-pixel — there is no separate CSS reimplementation to
+fall out of sync with. In particular, modern CSS that older HTML-to-image
+tools drop is fully supported:
+- **Gradient / clipped text** — \`background-clip: text\` with
+  \`-webkit-text-fill-color: transparent\` renders as actual gradient-colored
+  letters (not a solid block behind the text).
+- **\`filter\` and \`backdrop-filter\`** — blur, drop-shadow, frosted-glass
+  panels, etc.
+- **\`mix-blend-mode\` / \`background-blend-mode\`**, \`clip-path\`, \`mask\`,
+  \`box-shadow\`, multi-layer gradients.
 - Inline \`<style>\` blocks and inline \`style="..."\` attributes.
 - Inline \`<script>\` blocks (executed inside a sandboxed preview iframe).
 - CSS animations and transitions (captured by the GIF and APNG exporters).
 - Web-safe fonts and \`@font-face\` declarations using embedded/base64 or
-  publicly reachable font URLs.
+  publicly reachable (CORS-enabled) font URLs — fonts are auto-embedded into
+  the export so they don't fall back to a system font.
 - Background images and gradients. A transparent background is enabled by
   default and preserved in PNG exports; JPG always falls back to a solid
   background since it has no alpha channel.
 
 ### Not supported in MVP
-- External resources blocked by CORS (cross-origin images/fonts may render
-  blank in the exported image even if they preview correctly).
+- External images/fonts that are **not** CORS-enabled. Same-origin and
+  CORS-enabled assets are fetched and inlined automatically; assets the
+  browser refuses to read cross-origin render blank. Inline them as base64
+  (or host them with permissive CORS) to be safe.
 - Multi-page documents — only the first viewport-sized frame is captured.
 - Video elements and WebGL/canvas-heavy animations in GIF/APNG export (frame
   capture works best with CSS/DOM animation).
@@ -60,6 +75,14 @@ print-ready PDF, favicon, or ad creative without opening a design tool.
 ## 4. Best Practices
 - Set an explicit \`width\`/\`height\` (or use a size preset) that matches your
   design instead of relying on the browser's default viewport.
+- **Make the content fit the canvas — anything past the declared
+  \`height\` is cropped.** The export captures exactly the \`width\` × \`height\`
+  region; content that overflows is silently cut off (and \`justify-content:
+  space-between\` on an overflowing column makes blocks overlap). Give the
+  root element \`width\`/\`height\` equal to your canvas size, budget your font
+  sizes/padding/gaps to fit, and confirm nothing is clipped in the preview
+  before exporting. If a design feels cramped, reduce content or enlarge the
+  canvas rather than letting it overflow.
 - Avoid \`position: fixed\` relative to the browser window — use the document
   root element as your canvas instead.
 - Inline critical CSS rather than linking external stylesheets, since

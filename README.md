@@ -42,13 +42,20 @@ npm run lint     # oxlint
 
 The preview renders inside a sandboxed `<iframe sandbox="allow-scripts
 allow-same-origin">` using `srcdoc`. Export captures that iframe's DOM with
-[html2canvas](https://github.com/niklasvb/html2canvas). PNG/JPG/WebP/AVIF are
-a single capture via `canvas.toBlob`; PDF wraps a single capture in a
-pixel-sized page via [jsPDF](https://github.com/parallax/jsPDF); ICO resizes
-that single capture into a 16/32/48/256px multi-resolution favicon; SVG skips
-html2canvas entirely and re-embeds the iframe's live, serialized DOM inside
-an SVG `<foreignObject>` (not a vector trace — renders in browsers, not in
-vector editors).
+[modern-screenshot](https://github.com/qq15725/modern-screenshot), which
+rasterizes by serializing the node into an SVG `<foreignObject>` and letting
+the browser's own engine paint it. This is what makes the export match the
+live preview pixel-for-pixel: modern CSS such as `background-clip: text`
+(gradient-clipped text), `backdrop-filter`, `filter`, and `mix-blend-mode`
+render correctly, instead of being silently dropped the way a CSS-
+reimplementing rasterizer (e.g. html2canvas) drops them. Same-origin and
+CORS-enabled images/fonts are auto-embedded as data URLs so they survive the
+foreignObject sandbox. PNG/JPG/WebP/AVIF are a single capture via
+`canvas.toBlob`; PDF wraps a single capture in a pixel-sized page via
+[jsPDF](https://github.com/parallax/jsPDF); ICO resizes that single capture
+into a 16/32/48/256px multi-resolution favicon; SVG re-embeds the iframe's
+live, serialized DOM inside an SVG `<foreignObject>` directly (not a vector
+trace — renders in browsers, not in vector editors).
 
 GIF and APNG export restart the iframe's document
 (`document.open/write/close`, since `location.reload()` is a no-op for
@@ -58,17 +65,17 @@ capture frames over the chosen duration/fps. GIF frames are encoded with
 vendored at `public/gif.worker.js`); APNG frames are encoded with
 [UPNG.js](https://github.com/photopea/UPNG.js), trading GIF's 256-color/no
 real-alpha limits for true 8-bit alpha at a larger file size. Both share the
-same animation-seeking rig: html2canvas itself zeroes out
-`animation-duration` on any actively-animating element it captures (to get a
-stable read), which — combined with `animation-fill-mode: forwards` — would
-otherwise snap every frame straight to the animation's end state. To avoid
-that, each CSS animation is permanently disabled (`animation: none`) for the
-duration of the export and re-created as an independent Web Animations API
-`Animation` using the same keyframes/timing, fully detached from the CSS
-`animation` property. That detached animation is seeked to the exact frame
-time via `currentTime` before each capture — html2canvas never sees a
-non-zero `animation-duration` to neutralize, and nothing else is fighting
-over the animation's state between frames.
+same animation-seeking rig: any clone-based rasterizer samples a *live* CSS
+animation at whatever wall-clock moment the clone is read, which — combined
+with `animation-fill-mode: forwards` — would otherwise snap every frame
+straight to the animation's end state. To avoid that, each CSS animation is
+permanently disabled (`animation: none`) for the duration of the export and
+re-created as an independent Web Animations API `Animation` using the same
+keyframes/timing, fully detached from the CSS `animation` property. That
+detached animation is seeked to the exact frame time via `currentTime` and its
+computed style baked inline before each capture, so every frame is a
+deterministic, controlled pose rather than whatever the live animation happened
+to be showing.
 
 ## Usage tracking
 
@@ -84,8 +91,8 @@ just leave the badge as-is instead of blocking the export.
 
 ## Tech stack
 
-React + TypeScript + Vite, Tailwind CSS v4, Zustand for state, html2canvas,
-jsPDF, gif.js, and UPNG.js for export.
+React + TypeScript + Vite, Tailwind CSS v4, Zustand for state,
+modern-screenshot, jsPDF, gif.js, and UPNG.js for export.
 
 ## License
 
