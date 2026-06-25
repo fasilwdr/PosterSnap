@@ -1,5 +1,6 @@
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode, type RefObject } from 'react'
 import { useAppStore } from '../store/appStore'
+import { detectSettleMsForIframe } from '../lib/capture'
 import { SIZE_PRESETS } from '../lib/presets'
 import type { Scale } from '../types'
 
@@ -22,7 +23,11 @@ const segBase =
 const segActive = 'border-accent/70 bg-accent-strong/25 text-white shadow-[0_0_0_1px_rgba(99,102,241,0.3)]'
 const segIdle = 'border-white/10 bg-black/20 text-white/60 hover:border-white/20 hover:bg-white/5'
 
-export default function ControlsPanel() {
+interface ControlsPanelProps {
+  iframeRef: RefObject<HTMLIFrameElement | null>
+}
+
+export default function ControlsPanel({ iframeRef }: ControlsPanelProps) {
   const presetId = useAppStore((s) => s.presetId)
   const width = useAppStore((s) => s.width)
   const height = useAppStore((s) => s.height)
@@ -33,6 +38,9 @@ export default function ControlsPanel() {
   const imageQuality = useAppStore((s) => s.imageQuality)
   const animationFps = useAppStore((s) => s.animationFps)
   const animationDurationMs = useAppStore((s) => s.animationDurationMs)
+  const animationStartMs = useAppStore((s) => s.animationStartMs)
+  const isRendered = useAppStore((s) => s.isRendered)
+  const renderToken = useAppStore((s) => s.renderToken)
 
   const applyPreset = useAppStore((s) => s.applyPreset)
   const setWidth = useAppStore((s) => s.setWidth)
@@ -43,9 +51,22 @@ export default function ControlsPanel() {
   const setImageQuality = useAppStore((s) => s.setImageQuality)
   const setAnimationFps = useAppStore((s) => s.setAnimationFps)
   const setAnimationDurationMs = useAppStore((s) => s.setAnimationDurationMs)
+  const setAnimationStartMs = useAppStore((s) => s.setAnimationStartMs)
 
   const isQualityFormat = format === 'jpg' || format === 'webp' || format === 'avif'
   const isAnimatedFormat = format === 'gif' || format === 'apng'
+
+  // Auto-detect where one-shot entrance animations settle, so the "Auto" start
+  // option can show the resolved offset. Re-runs whenever the preview re-renders.
+  const [detectedSettleMs, setDetectedSettleMs] = useState(0)
+  useEffect(() => {
+    if (!isAnimatedFormat || !isRendered) return
+    const iframe = iframeRef.current
+    if (!iframe) return
+    setDetectedSettleMs(detectSettleMsForIframe(iframe))
+  }, [isAnimatedFormat, isRendered, renderToken, iframeRef])
+
+  const isAutoStart = animationStartMs === 'auto'
 
   return (
     <section className="flex flex-col gap-4" aria-label="Size and export controls">
@@ -162,6 +183,45 @@ export default function ControlsPanel() {
 
       {isAnimatedFormat && (
         <div className="flex flex-col gap-3 rounded-xl border border-white/10 bg-black/20 p-3">
+          <Field label="Start at">
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setAnimationStartMs('auto')}
+                aria-pressed={isAutoStart}
+                className={`${segBase} ${isAutoStart ? segActive : segIdle}`}
+              >
+                Auto
+              </button>
+              <button
+                type="button"
+                onClick={() => setAnimationStartMs(isAutoStart ? detectedSettleMs : animationStartMs)}
+                aria-pressed={!isAutoStart}
+                className={`${segBase} ${!isAutoStart ? segActive : segIdle}`}
+              >
+                Manual
+              </button>
+              <input
+                type="number"
+                min={0}
+                max={60}
+                step={0.25}
+                disabled={isAutoStart}
+                value={isAutoStart ? '' : (animationStartMs / 1000).toString()}
+                onChange={(e) => setAnimationStartMs(Math.max(0, Number(e.target.value) || 0) * 1000)}
+                placeholder="s"
+                aria-label="Start offset in seconds"
+                className="field-input w-16 px-2 py-1 text-sm disabled:opacity-40"
+              />
+            </div>
+          </Field>
+          <p className="text-xs leading-relaxed text-white/40">
+            {isAutoStart
+              ? detectedSettleMs > 0
+                ? `Auto skips the intro: capture starts at ~${(detectedSettleMs / 1000).toFixed(1)}s, once one-shot entrance animations finish. Switch to Manual to capture from a specific time (e.g. 0s for the intro itself).`
+                : 'No one-shot entrance animation detected — capture starts at 0s.'
+              : 'Capture starts at the time above. Use 0s to include the intro reveal, or a later time to skip it.'}
+          </p>
           <div className="grid grid-cols-2 gap-3">
             <Field label={`FPS — ${animationFps}`}>
               <input

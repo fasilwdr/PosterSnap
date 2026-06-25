@@ -90,6 +90,22 @@ tools drop is fully supported:
 - For GIF/APNG export, FPS and duration are adjustable up to 60s; longer
   durations and higher FPS produce much larger files and slower exports,
   so keep animations as short as the design needs.
+- **GIF/APNG capture a *window* of the timeline, not the settled poster.**
+  Frames are sampled from a start offset over the chosen duration. A common
+  mistake is building the design entirely from one-shot entrance animations
+  (\`fade-in\`, \`slide-up\`, \`opacity: 0 -> 1\` with staggered delays): those
+  start *blank* at t=0, so a capture from the start shows empty or
+  half-revealed frames that look nothing like the preview (which you view
+  after everything has settled). To get a good loop:
+  - Prefer **looping** animations (\`animation: ... infinite\`) that look good
+    at every moment, rather than play-once intros, for anything you want in
+    the GIF.
+  - PosterSnap's **Start at: Auto** (the default) auto-detects when one-shot
+    entrance animations finish and begins capture there, so the GIF shows the
+    settled design plus any looping motion. Set **Start at: Manual = 0s** if
+    you specifically want to capture the intro reveal, or pick a later time to
+    skip further in.
+  - Make sure the \`duration\` covers a full loop of the motion you want.
 - Test at 1x scale first, then bump to 2x/3x only for final high-res export.
 - For ICO export, use a square canvas (equal width/height) — non-square
   canvases get stretched to fit each icon size.
@@ -148,11 +164,13 @@ tools drop is fully supported:
   for print-ready handoff or sharing a poster as a document.
 - **GIF**: only worth using when your HTML actually animates (CSS keyframes,
   transitions, or JS-driven changes). Set FPS and duration (up to 60s) to
-  match your animation's natural loop length. CSS animations are captured
-  by deterministically seeking each frame, so even finite (non-looping)
-  animations are captured correctly frame-by-frame instead of as a single
-  frozen frame. GIF export is capped at 2x scale (even if 3x is selected) to
-  keep per-frame capture fast, and is limited to a 256-color palette.
+  match your animation's natural loop length, and use **Start at** to choose
+  where capture begins (Auto skips one-shot entrance intros; see Best
+  Practices). CSS animations are captured by deterministically seeking each
+  frame, so even finite (non-looping) animations are captured correctly
+  frame-by-frame instead of as a single frozen frame. GIF export is capped at
+  2x scale (even if 3x is selected) to keep per-frame capture fast, and is
+  limited to a 256-color palette.
 - **APNG**: an animated PNG alternative to GIF using the same frame-by-frame
   capture — keeps full 8-bit alpha transparency and avoids GIF's color/
   dithering limits, at the cost of a larger file.

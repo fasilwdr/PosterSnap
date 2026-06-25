@@ -34,7 +34,7 @@ function App() {
 
         {/* 3. Size & Export — left column, bottom */}
         <div className="glass-panel rounded-2xl p-4 sm:p-5 lg:col-start-1 lg:row-start-2 lg:min-h-0 lg:overflow-y-auto">
-          <ControlsPanel />
+          <ControlsPanel iframeRef={iframeRef} />
         </div>
       </main>
 

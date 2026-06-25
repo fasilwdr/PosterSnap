@@ -359,7 +359,48 @@ function teardownAnimationRig(rig: AnimationRig): void {
 export interface AnimationCaptureOptions extends CaptureOptions {
   fps: number
   durationMs: number
+  /**
+   * Where on the animation timeline (ms from frame zero) the capture window
+   * begins. Frame N is sampled at `startMs + N * frameInterval`. When
+   * undefined, it defaults to the moment all one-shot entrance animations have
+   * settled (see {@link detectSettleMs}) so an intro-heavy poster is captured
+   * in its finished, looping state rather than mid-reveal (or worse, on its
+   * blank pre-reveal frame).
+   */
+  startMs?: number
   onProgress?: (fraction: number) => void
+}
+
+/**
+ * The latest finite animation end-time in the document, in ms — i.e. the
+ * moment every one-shot entrance animation has finished. Infinite/looping
+ * animations (orbs, shimmers, pulses) never "end" and are ignored. Returns 0
+ * when there are no finite animations.
+ *
+ * This is the natural default capture start for an animated export: posters
+ * commonly fade/slide their content in from `opacity: 0` over the first few
+ * seconds, so capturing from t=0 yields blank or half-revealed frames that
+ * look nothing like the settled preview. Starting at the settle point instead
+ * captures the design as the viewer actually sees it, plus whatever looping
+ * background motion continues from there.
+ */
+function detectSettleMs(doc: Document): number {
+  let settle = 0
+  for (const animation of doc.getAnimations()) {
+    const timing = (animation.effect as KeyframeEffect | null)?.getComputedTiming?.()
+    const end = timing?.endTime
+    if (typeof end === 'number' && Number.isFinite(end)) settle = Math.max(settle, end)
+  }
+  return Math.round(settle)
+}
+
+/**
+ * Same as {@link detectSettleMs} but reads from a preview iframe — exposed so
+ * the UI can show the auto-detected start offset before exporting.
+ */
+export function detectSettleMsForIframe(iframe: HTMLIFrameElement): number {
+  const doc = iframe.contentDocument
+  return doc ? detectSettleMs(doc) : 0
 }
 
 interface FrameTiming {
@@ -383,6 +424,7 @@ async function runAnimationCapture(
   iframe: HTMLIFrameElement,
   captureOpts: CaptureOptions,
   timing: FrameTiming,
+  startMs: number | undefined,
   onProgress: ((fraction: number) => void) | undefined,
   onFrame: (canvas: HTMLCanvasElement, frameIndex: number) => void | Promise<void>,
 ): Promise<void> {
@@ -392,6 +434,9 @@ async function runAnimationCapture(
   if (!doc) {
     throw new Error('Preview is not ready yet. Click Render and wait for the preview to load.')
   }
+  // Resolve the capture start before the rig disables CSS animations (which
+  // removes them from `getAnimations()` and would zero out the detection).
+  const baseStartMs = startMs ?? detectSettleMs(doc)
   const rig = prepareAnimationRig(doc)
   const view = doc.defaultView ?? window
 
@@ -408,7 +453,7 @@ async function runAnimationCapture(
       await new Promise((resolve) => setTimeout(resolve, remaining))
     }
 
-    await seekFrame(rig, view, targetElapsed)
+    await seekFrame(rig, view, baseStartMs + targetElapsed)
     const canvas = await captureCanvas(iframe, captureOpts)
 
     await onFrame(canvas, i)
@@ -421,7 +466,7 @@ async function runAnimationCapture(
 export type GifOptions = AnimationCaptureOptions
 
 export async function exportGif(iframe: HTMLIFrameElement, opts: GifOptions): Promise<Blob> {
-  const { fps, durationMs, onProgress, ...rawCaptureOpts } = opts
+  const { fps, durationMs, startMs, onProgress, ...rawCaptureOpts } = opts
   const timing = computeFrameTiming(fps, durationMs)
   // Each frame re-runs a full capture; capping resolution keeps per-frame
   // cost low enough to actually keep up with the requested fps.
@@ -437,7 +482,7 @@ export async function exportGif(iframe: HTMLIFrameElement, opts: GifOptions): Pr
     workerScript: `${import.meta.env.BASE_URL}gif.worker.js`,
   })
 
-  await runAnimationCapture(iframe, captureOpts, timing, onProgress, (canvas) => {
+  await runAnimationCapture(iframe, captureOpts, timing, startMs, onProgress, (canvas) => {
     gif.addFrame(canvas, { copy: true, delay: timing.frameInterval })
   })
 
@@ -461,7 +506,7 @@ export type ApngOptions = AnimationCaptureOptions
  * transparent animated posters don't dither or lose their background.
  */
 export async function exportApng(iframe: HTMLIFrameElement, opts: ApngOptions): Promise<Blob> {
-  const { fps, durationMs, onProgress, ...rawCaptureOpts } = opts
+  const { fps, durationMs, startMs, onProgress, ...rawCaptureOpts } = opts
   const timing = computeFrameTiming(fps, durationMs)
   const captureOpts = { ...rawCaptureOpts, scale: Math.min(rawCaptureOpts.scale, 2) }
 
@@ -472,7 +517,7 @@ export async function exportApng(iframe: HTMLIFrameElement, opts: ApngOptions): 
   let pixelWidth = 0
   let pixelHeight = 0
 
-  await runAnimationCapture(iframe, captureOpts, timing, onProgress, (canvas) => {
+  await runAnimationCapture(iframe, captureOpts, timing, startMs, onProgress, (canvas) => {
     pixelWidth = canvas.width
     pixelHeight = canvas.height
     const ctx = canvas.getContext('2d')

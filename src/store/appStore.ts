@@ -23,6 +23,10 @@ interface AppState {
   imageQuality: number
   animationFps: number
   animationDurationMs: number
+  // Where on the timeline animated capture begins. 'auto' = start once the
+  // one-shot entrance animations have settled (detected per-export); a number
+  // is an explicit offset in ms.
+  animationStartMs: number | 'auto'
 
   // Preview
   zoom: ZoomLevel
@@ -52,6 +56,7 @@ interface AppState {
   setImageQuality: (quality: number) => void
   setAnimationFps: (fps: number) => void
   setAnimationDurationMs: (ms: number) => void
+  setAnimationStartMs: (start: number | 'auto') => void
   setZoom: (zoom: ZoomLevel) => void
   triggerRender: () => void
   setIsRendered: (rendered: boolean) => void
@@ -78,6 +83,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   imageQuality: 0.9,
   animationFps: 10,
   animationDurationMs: 2000,
+  animationStartMs: 'auto',
 
   zoom: 'fit',
   renderToken: 0,
@@ -113,6 +119,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   setImageQuality: (imageQuality) => set({ imageQuality }),
   setAnimationFps: (animationFps) => set({ animationFps }),
   setAnimationDurationMs: (animationDurationMs) => set({ animationDurationMs }),
+  setAnimationStartMs: (animationStartMs) => set({ animationStartMs }),
 
   setZoom: (zoom) => set({ zoom }),
   triggerRender: () => set((state) => ({ renderToken: state.renderToken + 1, isRendered: false })),

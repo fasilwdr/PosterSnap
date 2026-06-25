@@ -48,6 +48,7 @@ export default function ActionBar({ iframeRef }: ActionBarProps) {
   const imageQuality = useAppStore((s) => s.imageQuality)
   const animationFps = useAppStore((s) => s.animationFps)
   const animationDurationMs = useAppStore((s) => s.animationDurationMs)
+  const animationStartMs = useAppStore((s) => s.animationStartMs)
 
   const triggerRender = useAppStore((s) => s.triggerRender)
   const setFormat = useAppStore((s) => s.setFormat)
@@ -83,7 +84,13 @@ export default function ActionBar({ iframeRef }: ActionBarProps) {
     setExportProgress(0)
     try {
       const baseOpts = { width, height, scale, backgroundMode, backgroundColor }
-      const animationOpts = { ...baseOpts, fps: animationFps, durationMs: animationDurationMs, onProgress: setExportProgress }
+      const animationOpts = {
+        ...baseOpts,
+        fps: animationFps,
+        durationMs: animationDurationMs,
+        startMs: animationStartMs === 'auto' ? undefined : animationStartMs,
+        onProgress: setExportProgress,
+      }
       let blob: Blob
       let ext: string
 
