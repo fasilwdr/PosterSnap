@@ -51,17 +51,29 @@ tools drop is fully supported:
 - Inline \`<script>\` blocks (executed inside a sandboxed preview iframe).
 - CSS animations and transitions (captured by the GIF and APNG exporters).
 - Web-safe fonts and \`@font-face\` declarations using embedded/base64 or
-  publicly reachable (CORS-enabled) font URLs — fonts are auto-embedded into
-  the export so they don't fall back to a system font.
+  remote font URLs — fonts are auto-embedded into the export so they don't
+  fall back to a system font.
+- **Remote images and fonts referenced by URL**, including hosts that don't
+  send CORS headers (plain CDNs, \`/web/image\` endpoints, etc.). With the
+  **Proxy remote assets** toggle on (the default), any asset the browser can't
+  read cross-origin is fetched through PosterSnap's own same-origin proxy and
+  inlined, so \`<img src="https://…">\`, CSS \`url(...)\`, and SVG
+  \`<image href>\` all survive the export. Works for \`<img>\`, \`background-image\`,
+  \`@font-face\`, and inline SVG images.
 - Background images and gradients. A transparent background is enabled by
   default and preserved in PNG exports; JPG always falls back to a solid
   background since it has no alpha channel.
 
-### Not supported in MVP
-- External images/fonts that are **not** CORS-enabled. Same-origin and
-  CORS-enabled assets are fetched and inlined automatically; assets the
-  browser refuses to read cross-origin render blank. Inline them as base64
-  (or host them with permissive CORS) to be safe.
+### Notes & limitations
+- **Remote assets need the *Proxy remote assets* toggle on** (default). With it
+  off, only same-origin or CORS-enabled assets are inlined and other remote
+  images/fonts render blank. Either way, PosterSnap shows a warning toast
+  listing any asset it ultimately couldn't load, so a missing image is never
+  silent. An asset can still fail if its host is offline, blocks the proxy, or
+  the URL is wrong — inline those as base64 to be certain.
+- On the GitHub Pages build the proxy falls back to a public image-proxy
+  service (there's no server there); the Cloudflare deployment keeps every
+  proxied request on PosterSnap's own origin.
 - Multi-page documents — only the first viewport-sized frame is captured.
 - Video elements and WebGL/canvas-heavy animations in GIF/APNG export (frame
   capture works best with CSS/DOM animation).
@@ -191,6 +203,11 @@ tools drop is fully supported:
 - **Export looks different from the preview** — fonts or cross-origin assets
   may not have finished loading before capture; wait for the preview to
   fully settle (1-2s) before exporting, or inline assets as base64.
+- **A remote image is missing from the export** — make sure the **Proxy
+  remote assets** toggle is on (default). If it's on and the image still drops,
+  check the warning toast for the failing URL: the host may be offline,
+  blocking the proxy, or the URL may be wrong. Inlining the image as a base64
+  \`data:\` URL always works.
 - **GIF export is slow or large** — reduce duration/FPS or shrink the canvas
   size; frame-by-frame capture is CPU-intensive for big canvases.
 `
