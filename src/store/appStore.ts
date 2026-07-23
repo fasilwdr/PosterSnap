@@ -20,6 +20,9 @@ interface AppState {
 
   // Export controls
   format: ExportFormat
+  // Route non-CORS remote assets (image/font URLs) through a proxy so they can
+  // be inlined into the export instead of vanishing. On by default.
+  proxyRemoteAssets: boolean
   imageQuality: number
   animationFps: number
   animationDurationMs: number
@@ -53,6 +56,7 @@ interface AppState {
   setBackgroundMode: (mode: BackgroundMode) => void
   setBackgroundColor: (color: string) => void
   setFormat: (format: ExportFormat) => void
+  setProxyRemoteAssets: (enabled: boolean) => void
   setImageQuality: (quality: number) => void
   setAnimationFps: (fps: number) => void
   setAnimationDurationMs: (ms: number) => void
@@ -80,6 +84,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   backgroundColor: '#ffffff',
 
   format: 'png',
+  proxyRemoteAssets: true,
   imageQuality: 0.9,
   animationFps: 10,
   animationDurationMs: 2000,
@@ -116,6 +121,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       format,
       backgroundMode: format === 'jpg' ? 'solid' : state.backgroundMode,
     })),
+  setProxyRemoteAssets: (proxyRemoteAssets) => set({ proxyRemoteAssets }),
   setImageQuality: (imageQuality) => set({ imageQuality }),
   setAnimationFps: (animationFps) => set({ animationFps }),
   setAnimationDurationMs: (animationDurationMs) => set({ animationDurationMs }),

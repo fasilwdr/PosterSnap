@@ -12,6 +12,7 @@ import {
   exportSvg,
   exportWebp,
 } from '../lib/capture'
+import { createAssetResolver } from '../lib/remoteAssets'
 import { buildExportFilename, downloadBlob, downloadText } from '../lib/download'
 import { generateSkillMd, SKILL_MD_FILENAME } from '../lib/skillMd'
 import { trackExport } from '../lib/analytics'
@@ -49,6 +50,7 @@ export default function ActionBar({ iframeRef }: ActionBarProps) {
   const animationFps = useAppStore((s) => s.animationFps)
   const animationDurationMs = useAppStore((s) => s.animationDurationMs)
   const animationStartMs = useAppStore((s) => s.animationStartMs)
+  const proxyRemoteAssets = useAppStore((s) => s.proxyRemoteAssets)
 
   const triggerRender = useAppStore((s) => s.triggerRender)
   const setFormat = useAppStore((s) => s.setFormat)
@@ -62,6 +64,20 @@ export default function ActionBar({ iframeRef }: ActionBarProps) {
     void trackExport().then((count) => {
       if (count !== null) setExportCount(count)
     })
+  }
+
+  // Surfaces any remote asset that couldn't be inlined, so a missing image in
+  // the export isn't a silent surprise.
+  function warnFailedAssets(failed: string[]) {
+    if (failed.length === 0) return
+    const [first] = failed
+    const more = failed.length > 1 ? ` (+${failed.length - 1} more)` : ''
+    pushToast(
+      'error',
+      proxyRemoteAssets
+        ? `Couldn't load ${failed.length} remote image/font — it may be offline or blocking proxies: ${first}${more}`
+        : `${failed.length} remote image/font was skipped (proxy off): ${first}${more}. Enable "Proxy remote assets" to inline it.`,
+    )
   }
 
   function handleRender() {
@@ -82,8 +98,9 @@ export default function ActionBar({ iframeRef }: ActionBarProps) {
 
     setIsExporting(true)
     setExportProgress(0)
+    const resolver = createAssetResolver({ proxy: proxyRemoteAssets })
     try {
-      const baseOpts = { width, height, scale, backgroundMode, backgroundColor }
+      const baseOpts = { width, height, scale, backgroundMode, backgroundColor, resolver }
       const animationOpts = {
         ...baseOpts,
         fps: animationFps,
@@ -135,6 +152,7 @@ export default function ActionBar({ iframeRef }: ActionBarProps) {
 
       downloadBlob(blob, buildExportFilename(width, height, ext))
       pushToast('success', `Exported ${ext.toUpperCase()} successfully.`)
+      warnFailedAssets(resolver.failedUrls())
       recordExport()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Export failed.'
@@ -153,10 +171,19 @@ export default function ActionBar({ iframeRef }: ActionBarProps) {
   async function handleCopyToClipboard() {
     const iframe = iframeRef.current
     if (!iframe) return
+    const resolver = createAssetResolver({ proxy: proxyRemoteAssets })
     try {
-      const blob = await exportPng(iframe, { width, height, scale, backgroundMode, backgroundColor })
+      const blob = await exportPng(iframe, {
+        width,
+        height,
+        scale,
+        backgroundMode,
+        backgroundColor,
+        resolver,
+      })
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
       pushToast('success', 'Copied PNG to clipboard.')
+      warnFailedAssets(resolver.failedUrls())
       recordExport()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Could not copy to clipboard.'

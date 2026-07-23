@@ -39,6 +39,7 @@ export default function ControlsPanel({ iframeRef }: ControlsPanelProps) {
   const animationFps = useAppStore((s) => s.animationFps)
   const animationDurationMs = useAppStore((s) => s.animationDurationMs)
   const animationStartMs = useAppStore((s) => s.animationStartMs)
+  const proxyRemoteAssets = useAppStore((s) => s.proxyRemoteAssets)
   const isRendered = useAppStore((s) => s.isRendered)
   const renderToken = useAppStore((s) => s.renderToken)
 
@@ -52,6 +53,7 @@ export default function ControlsPanel({ iframeRef }: ControlsPanelProps) {
   const setAnimationFps = useAppStore((s) => s.setAnimationFps)
   const setAnimationDurationMs = useAppStore((s) => s.setAnimationDurationMs)
   const setAnimationStartMs = useAppStore((s) => s.setAnimationStartMs)
+  const setProxyRemoteAssets = useAppStore((s) => s.setProxyRemoteAssets)
 
   const isQualityFormat = format === 'jpg' || format === 'webp' || format === 'avif'
   const isAnimatedFormat = format === 'gif' || format === 'apng'
@@ -167,6 +169,31 @@ export default function ControlsPanel({ iframeRef }: ControlsPanelProps) {
           )}
         </div>
       </Field>
+
+      <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/10 bg-black/20 p-3">
+        <button
+          type="button"
+          role="switch"
+          aria-checked={proxyRemoteAssets}
+          onClick={() => setProxyRemoteAssets(!proxyRemoteAssets)}
+          className={`mt-0.5 flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition ${
+            proxyRemoteAssets ? 'bg-accent-strong' : 'bg-white/15'
+          }`}
+        >
+          <span
+            className={`h-4 w-4 rounded-full bg-white shadow transition-transform ${
+              proxyRemoteAssets ? 'translate-x-4' : 'translate-x-0'
+            }`}
+          />
+        </button>
+        <span className="flex flex-col gap-0.5">
+          <span className="text-xs font-medium uppercase tracking-wide text-white/70">Proxy remote assets</span>
+          <span className="text-xs leading-relaxed text-white/40">
+            Inlines images/fonts loaded from a URL so they survive export. Off = only same-origin or
+            CORS-enabled assets are captured; other remote images render blank.
+          </span>
+        </span>
+      </label>
 
       {isQualityFormat && (
         <Field label={`${format.toUpperCase()} quality — ${Math.round(imageQuality * 100)}%`}>

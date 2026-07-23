@@ -1,8 +1,13 @@
 {
   "name": "postersnap",
   "compatibility_date": "2026-06-23",
+  "main": "./worker/index.ts",
   "assets": {
     "directory": "./dist",
-    "not_found_handling": "single-page-application"
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    // Without this, /api/proxy would be answered by the SPA fallback (index.html)
+    // instead of ever reaching the Worker.
+    "run_worker_first": ["/api/*"]
   }
 }

@@ -1,5 +1,6 @@
 import { domToCanvas } from 'modern-screenshot'
 import type { BackgroundMode } from '../types'
+import type { AssetResolver } from './remoteAssets'
 
 export interface CaptureOptions {
   width: number
@@ -7,6 +8,13 @@ export interface CaptureOptions {
   scale: number
   backgroundMode: BackgroundMode
   backgroundColor: string
+  /**
+   * Inlines non-CORS remote assets (images/fonts referenced by URL) into the
+   * export via a same-origin proxy. Without it, modern-screenshot can't read
+   * cross-origin bytes and silently drops them to a transparent placeholder.
+   * Optional so callers that only use same-origin/data-URL assets pay nothing.
+   */
+  resolver?: AssetResolver
 }
 
 function getIframeRoot(iframe: HTMLIFrameElement): HTMLElement {
@@ -19,7 +27,7 @@ function getIframeRoot(iframe: HTMLIFrameElement): HTMLElement {
 
 export async function captureCanvas(
   iframe: HTMLIFrameElement,
-  { width, height, scale, backgroundMode, backgroundColor }: CaptureOptions,
+  { width, height, scale, backgroundMode, backgroundColor, resolver }: CaptureOptions,
 ): Promise<HTMLCanvasElement> {
   const root = getIframeRoot(iframe)
   // modern-screenshot rasterizes by serializing the node into an SVG
@@ -45,6 +53,11 @@ export async function captureCanvas(
     // edges). `style` is applied to the root clone after its styles are copied,
     // so an inline margin here outranks the UA rule.
     style: { margin: '0' },
+    // Route remote (cross-origin, non-CORS) assets through our proxy so they
+    // survive the foreignObject sandbox instead of rendering blank. Returning
+    // `false` for same-origin/data URLs lets the library's own fetcher handle
+    // them. Undefined resolver => library default behaviour.
+    fetchFn: resolver?.fetchFn,
   })
 }
 
@@ -175,7 +188,15 @@ export async function exportSvg(iframe: HTMLIFrameElement, opts: CaptureOptions)
   if (!doc?.documentElement) {
     throw new Error('Preview is not ready yet. Click Render and wait for the preview to load.')
   }
-  const serializedHtml = new XMLSerializer().serializeToString(doc.documentElement)
+  // SVG export serializes the markup rather than rasterizing it, so it never
+  // passes through modern-screenshot's fetchFn — inline remote assets into a
+  // detached clone (leaving the live preview untouched) before serializing.
+  let node: Element = doc.documentElement
+  if (opts.resolver) {
+    node = doc.documentElement.cloneNode(true) as Element
+    await opts.resolver.inlineInto(node)
+  }
+  const serializedHtml = new XMLSerializer().serializeToString(node)
   const background =
     opts.backgroundMode === 'solid' ? `<rect width="100%" height="100%" fill="${opts.backgroundColor}"/>` : ''
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${opts.width}" height="${opts.height}" viewBox="0 0 ${opts.width} ${opts.height}">${background}<foreignObject x="0" y="0" width="${opts.width}" height="${opts.height}">${serializedHtml}</foreignObject></svg>`
