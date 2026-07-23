@@ -36,6 +36,15 @@ export async function captureCanvas(
     height,
     scale,
     backgroundColor: backgroundMode === 'transparent' ? null : backgroundColor,
+    // The clone is re-parented into an SVG <foreignObject>, where the UA
+    // stylesheet's `body { margin: 8px }` applies again — modern-screenshot
+    // strips the root clone's own margin declarations, so the document's
+    // `body { margin: 0 }` doesn't survive to counter it. Without this the
+    // artwork is pushed 8px right/down inside the canvas, leaving an unpainted
+    // strip along the top and left edges (and clipping 8px off the opposite
+    // edges). `style` is applied to the root clone after its styles are copied,
+    // so an inline margin here outranks the UA rule.
+    style: { margin: '0' },
   })
 }
 
